@@ -158,7 +158,7 @@ Parse_Error :: enum {
 	Invalid_Integer,
 	// An integer outside the signed 64-bit range.
 	Integer_Overflow,
-	// A malformed or out-of-range float, such as `1.`, `.5` or `1e`.
+	// A malformed or out-of-range float, such as `1.`, `01.5` or `1e`.
 	Invalid_Float,
 	// A malformed or out-of-range date, time or date-time.
 	Invalid_Datetime,
