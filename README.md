@@ -146,7 +146,7 @@ The tests follow the valid and invalid categories of [toml-test](https://github.
 - Integers must fit in `i64`, and `parse` rejects floats that overflow `f64`.
 - Seconds may be 60, to allow leap seconds. `parse` drops digits past nanosecond precision.
 - `parse` skips a leading UTF-8 byte order mark.
-- Arrays and inline tables may nest 256 levels deep.
+- Tables and arrays may nest 256 levels below the root. Each part of a table header or dotted key counts as a level, as does each array and inline table, so `encode` accepts every tree that `parse` returns.
 
 ## Examples
 

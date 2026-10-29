@@ -44,8 +44,10 @@ write :: proc(w: io.Writer, t: ^Table) -> Error {
 	if t == nil {
 		return .Nil_Value
 	}
+	// write_table_body counts the root itself, which then sits at depth 0.
 	e := Encoder {
-		w = w,
+		w     = w,
+		depth = -1,
 	}
 	return write_table_body(&e, t)
 }
@@ -53,7 +55,8 @@ write :: proc(w: io.Writer, t: ^Table) -> Error {
 @(private = "file")
 Encoder :: struct {
 	w:         io.Writer,
-	path:      [MAX_NESTING_DEPTH]string,
+	// One slot more than the limit, so a table at the limit can name a child before the child is rejected.
+	path:      [MAX_NESTING_DEPTH + 1]string,
 	path_len:  int,
 	depth:     int,
 	wrote_any: bool,

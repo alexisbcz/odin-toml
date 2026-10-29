@@ -172,7 +172,7 @@ Parse_Error :: enum {
 	Inline_Table_Is_Immutable,
 	// An array-of-tables header names an array defined with `[ ]` syntax.
 	Static_Array_Is_Immutable,
-	// Arrays and inline tables nest deeper than MAX_NESTING_DEPTH.
+	// Tables and arrays nest deeper than MAX_NESTING_DEPTH, counting header paths and dotted keys.
 	Nesting_Too_Deep,
 }
 
@@ -209,7 +209,13 @@ Location :: struct {
 	column: int,
 }
 
-// MAX_NESTING_DEPTH bounds how deeply arrays and tables may nest, which keeps the parser and encoder off the edge of the stack.
+/*
+MAX_NESTING_DEPTH bounds how deeply tables and arrays may nest below the root
+table, which keeps the parser, the encoder and table_destroy off the edge of
+the stack. Every part of a table header or dotted key counts as one level, as
+does every array and inline table. parse rejects deeper documents, so any tree
+it returns also encodes.
+*/
 MAX_NESTING_DEPTH :: 256
 
 /*

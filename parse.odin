@@ -86,6 +86,7 @@ Parser :: struct {
 	kinds:     map[^Table]Table_Kind,
 	// Arrays created by `[[header]]`; arrays written with `[ ]` are absent.
 	headers:   map[^Array]struct{},
+	// How many tables and arrays below the root the value being parsed sits.
 	depth:     int,
 	err_pos:   int,
 }
@@ -339,6 +340,14 @@ parse_key_value :: proc(p: ^Parser, t: ^Table) -> Error {
 	p.pos += 1
 	skip_whitespace(p)
 
+	// Each dotted part but the last is a table one level below the previous one.
+	saved_depth := p.depth
+	defer p.depth = saved_depth
+	p.depth += len(parts) - 1
+	if p.depth > MAX_NESTING_DEPTH {
+		return fail(p, .Nesting_Too_Deep, key_pos)
+	}
+
 	target := t
 	for part in parts[:len(parts) - 1] {
 		target = enter_dotted(p, target, part, key_pos) or_return
@@ -425,6 +434,12 @@ parse_header :: proc(p: ^Parser) -> Error {
 		p.pos += 1
 	}
 	expect_line_end(p) or_return
+
+	// The named table sits one level below the root for each part of the header.
+	if len(parts) > MAX_NESTING_DEPTH {
+		return fail(p, .Nesting_Too_Deep, key_pos)
+	}
+	p.depth = len(parts)
 
 	t := p.root
 	for part in parts[:len(parts) - 1] {
