@@ -685,8 +685,10 @@ parse_escape :: proc(p: ^Parser, buf: ^[dynamic]byte) -> Error {
 // finish_string turns a scratch buffer into a string allocated with the parser's allocator.
 @(private = "file")
 finish_string :: proc(p: ^Parser, buf: [dynamic]byte) -> (s: string, err: Error) {
-	defer delete(buf)
-	return clone_string(string(buf[:]), p.allocator)
+	// On error the caller still owns `buf` and frees it, so only free it here on success.
+	s = clone_string(string(buf[:]), p.allocator) or_return
+	delete(buf)
+	return s, nil
 }
 
 @(private = "file")
