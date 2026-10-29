@@ -971,7 +971,8 @@ parse_number :: proc(p: ^Parser) -> (value: Value, err: Error) {
 		return math.inf_f64(-1 if negative else 1), nil
 	case "nan":
 		return math.nan_f64(), nil
-	case "":
+	}
+	if len(body) == 0 || !is_digit(body[0]) {
 		return nil, fail(p, .Expected_Value, start)
 	}
 
