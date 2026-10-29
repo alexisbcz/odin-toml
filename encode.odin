@@ -4,6 +4,7 @@ import "core:io"
 import "core:math"
 import "core:strconv"
 import "core:strings"
+import "core:unicode/utf8"
 
 /*
 encode writes `t` as a TOML document.
@@ -22,8 +23,10 @@ Inputs:
 Returns:
 - result: the document, owned by the caller; free it with `delete(result, allocator)`.
 - err: `Encode_Error.Nil_Value` when the tree holds a nil Value,
-  `Encode_Error.Nesting_Too_Deep` for trees deeper than MAX_NESTING_DEPTH, or
-  an allocator error.
+  `Encode_Error.Nesting_Too_Deep` for trees deeper than MAX_NESTING_DEPTH,
+  `Encode_Error.Invalid_Utf8` for a string or key that isn't valid UTF-8,
+  `Encode_Error.Invalid_Datetime` for a date, time or offset out of TOML's
+  range, or an allocator error. On error nothing is returned.
 */
 encode :: proc(t: ^Table, allocator := context.allocator) -> (result: string, err: Error) {
 	b := strings.builder_make_none(allocator) or_return
@@ -198,6 +201,9 @@ write_key :: proc(e: ^Encoder, key: string) -> Error {
 
 @(private = "file")
 write_string_literal :: proc(e: ^Encoder, s: string) -> Error {
+	if !utf8.valid_string(s) {
+		return Encode_Error.Invalid_Utf8
+	}
 	hex := "0123456789ABCDEF"
 	put_byte(e, '"') or_return
 	run := 0
@@ -253,6 +259,9 @@ write_inline :: proc(e: ^Encoder, value: Value) -> Error {
 	case bool:
 		return put(e, "true" if v else "false")
 	case Offset_Datetime:
+		if !valid_offset(v.offset_minutes) {
+			return Encode_Error.Invalid_Datetime
+		}
 		write_date(e, v.date) or_return
 		put_byte(e, 'T') or_return
 		write_time(e, v.time) or_return
@@ -345,8 +354,17 @@ write_padded :: proc(e: ^Encoder, n: int, width: int) -> Error {
 	return put(e, string(buf[i:]))
 }
 
+// valid_offset accepts the offsets that TOML can spell, from -23:59 to +23:59.
+@(private = "file")
+valid_offset :: proc(minutes: int) -> bool {
+	return abs(minutes) <= 23 * 60 + 59
+}
+
 @(private = "file")
 write_date :: proc(e: ^Encoder, d: Date) -> Error {
+	if d.year < 0 || d.year > 9999 || d.month < 1 || d.month > 12 || d.day < 1 || d.day > days_in_month(d.year, d.month) {
+		return Encode_Error.Invalid_Datetime
+	}
 	write_padded(e, d.year, 4) or_return
 	put_byte(e, '-') or_return
 	write_padded(e, d.month, 2) or_return
@@ -356,16 +374,19 @@ write_date :: proc(e: ^Encoder, d: Date) -> Error {
 
 @(private = "file")
 write_time :: proc(e: ^Encoder, t: Time) -> Error {
+	if t.hour < 0 || t.hour > 23 || t.minute < 0 || t.minute > 59 || t.second < 0 || t.second > 60 || t.nanosecond < 0 || t.nanosecond > 999_999_999 {
+		return Encode_Error.Invalid_Datetime
+	}
 	write_padded(e, t.hour, 2) or_return
 	put_byte(e, ':') or_return
 	write_padded(e, t.minute, 2) or_return
 	put_byte(e, ':') or_return
 	write_padded(e, t.second, 2) or_return
-	if t.nanosecond <= 0 {
+	if t.nanosecond == 0 {
 		return nil
 	}
 	digits: [9]byte
-	n := t.nanosecond % 1_000_000_000
+	n := t.nanosecond
 	for i := 8; i >= 0; i -= 1 {
 		digits[i] = byte('0' + n % 10)
 		n /= 10

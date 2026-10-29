@@ -139,6 +139,8 @@ Compare against a specific error with `err == toml.Error(toml.Parse_Error.Duplic
 
 `encode` writes each table's plain key/value pairs first, then its subtables as `[header]` sections and its arrays of tables as `[[header]]` sections. The encoder writes arrays that mix tables with other values, and tables inside such arrays, inline. Output is canonical: comments, blank lines and the original number formatting aren't kept.
 
+A tree built in code can hold values that TOML can't write. `encode` returns an `Encode_Error` instead of invalid output: `Nil_Value` for a nil value, `Invalid_Utf8` for a string or key that isn't valid UTF-8, `Invalid_Datetime` for a date, time or offset out of range, and `Nesting_Too_Deep` for a tree deeper than 256 levels.
+
 ## Conformance
 
 The tests follow the valid and invalid categories of [toml-test](https://github.com/toml-lang/toml-test), with more than 250 documents across more than 70 test procedures. Choices where TOML leaves room:

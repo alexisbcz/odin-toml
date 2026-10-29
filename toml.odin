@@ -183,6 +183,10 @@ Encode_Error :: enum {
 	Nil_Value,
 	// Tables or arrays nest deeper than MAX_NESTING_DEPTH, which usually means a cycle.
 	Nesting_Too_Deep,
+	// A string or key isn't valid UTF-8, which every TOML document must be.
+	Invalid_Utf8,
+	// A date, time or offset is outside the ranges TOML allows, such as year 10000, February 30, hour 24 or an offset of a day or more.
+	Invalid_Datetime,
 }
 
 /*

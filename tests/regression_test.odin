@@ -196,3 +196,68 @@ test_encode_depth_limit_matches_parse :: proc(t: ^testing.T) {
 	testing.expect_value(t, err, toml.Error(toml.Encode_Error.Nesting_Too_Deep))
 	testing.expect_value(t, deep_out, "")
 }
+
+@(test)
+test_encode_rejects_values_toml_cannot_express :: proc(t: ^testing.T) {
+	track: mem.Tracking_Allocator
+	context.allocator = tracked(&track)
+	defer expect_no_leaks(t, &track)
+
+	Bad :: struct {
+		value: toml.Value,
+		err:   toml.Encode_Error,
+	}
+	ok_date := toml.Date{2024, 2, 29}
+	ok_time := toml.Time{23, 59, 60, 999_999_999}
+	bad := []Bad {
+		{toml.Date{10_000, 1, 1}, .Invalid_Datetime},
+		{toml.Date{-1, 1, 1}, .Invalid_Datetime},
+		{toml.Date{2023, 2, 29}, .Invalid_Datetime},
+		{toml.Date{2024, 13, 1}, .Invalid_Datetime},
+		{toml.Date{2024, 1, 0}, .Invalid_Datetime},
+		{toml.Time{24, 0, 0, 0}, .Invalid_Datetime},
+		{toml.Time{0, 60, 0, 0}, .Invalid_Datetime},
+		{toml.Time{0, 0, 61, 0}, .Invalid_Datetime},
+		{toml.Time{0, 0, 0, 1_000_000_000}, .Invalid_Datetime},
+		{toml.Time{0, 0, 0, -1}, .Invalid_Datetime},
+		{toml.Local_Datetime{toml.Date{2024, 4, 31}, ok_time}, .Invalid_Datetime},
+		{toml.Offset_Datetime{ok_date, ok_time, 24 * 60}, .Invalid_Datetime},
+		{toml.Offset_Datetime{ok_date, ok_time, -24 * 60}, .Invalid_Datetime},
+		{toml.Offset_Datetime{ok_date, toml.Time{-1, 0, 0, 0}, 0}, .Invalid_Datetime},
+		{"\xff", .Invalid_Utf8},
+		{"ok \xed\xa0\x80 surrogate", .Invalid_Utf8},
+	}
+	for c in bad {
+		doc, _ := toml.table_make()
+		value := c.value
+		if s, is_string := value.(string); is_string {
+			// The tree frees its strings, so give it its own copy.
+			value = strings.clone(s)
+		}
+		toml.table_set(doc, "v", value)
+		out, err := toml.encode(doc)
+		testing.expectf(t, err == toml.Error(c.err), "%v: want %v, got %v (%q)", c.value, c.err, err, out)
+		delete(out)
+		toml.table_destroy(doc)
+	}
+
+	// Keys must be valid UTF-8 too.
+	doc, _ := toml.table_make()
+	defer toml.table_destroy(doc)
+	toml.table_set(doc, "\xc0\x80", true)
+	out, err := toml.encode(doc)
+	testing.expect_value(t, err, toml.Error(toml.Encode_Error.Invalid_Utf8))
+	testing.expect_value(t, out, "")
+
+	// The extremes of every range still encode and parse back.
+	edge, _ := toml.table_make()
+	defer toml.table_destroy(edge)
+	toml.table_set(edge, "low", toml.Offset_Datetime{toml.Date{0, 1, 1}, toml.Time{0, 0, 0, 0}, -(23 * 60 + 59)})
+	toml.table_set(edge, "high", toml.Offset_Datetime{toml.Date{9999, 12, 31}, ok_time, 23 * 60 + 59})
+	toml.table_set(edge, "leap", ok_date)
+	edge_out := encode_ok(t, edge)
+	defer delete(edge_out)
+	back := parse_ok(t, edge_out)
+	defer toml.table_destroy(back)
+	testing.expect(t, toml.value_equal(edge, back), "extreme date-times must round trip")
+}

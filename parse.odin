@@ -31,7 +31,7 @@ Example:
 */
 parse :: proc(data: string, allocator := context.allocator) -> (root: ^Table, err: Error, loc: Location) {
 	if bad := find_invalid_utf8(data); bad >= 0 {
-		return nil, .Invalid_Utf8, location_at(data, bad)
+		return nil, Parse_Error.Invalid_Utf8, location_at(data, bad)
 	}
 
 	p := Parser {
@@ -1079,7 +1079,7 @@ read_two_digits :: proc(s: string, at: int) -> (n: int, ok: bool) {
 	return int(s[at] - '0') * 10 + int(s[at + 1] - '0'), true
 }
 
-@(private = "file")
+@(private)
 days_in_month :: proc(year, month: int) -> int {
 	switch month {
 	case 2:
